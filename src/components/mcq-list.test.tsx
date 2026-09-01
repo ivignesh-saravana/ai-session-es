@@ -87,6 +87,21 @@ describe("McqList", () => {
     expect(push).toHaveBeenCalledWith("/mcqs/mcq1/edit");
   });
 
+  it("navigates to preview from the row actions menu", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ mcqs: questions }));
+    const { McqList } = await import("./mcq-list");
+    const user = userEvent.setup();
+    render(<McqList />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Photosynthesis")).toBeTruthy(),
+    );
+
+    await user.click(screen.getByRole("button", { name: /actions/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /preview/i }));
+    expect(push).toHaveBeenCalledWith("/mcqs/mcq1/preview");
+  });
+
   it("deletes a question after confirming in the dialog", async () => {
     vi.mocked(fetch).mockImplementation((input, init) => {
       const url = String(input);

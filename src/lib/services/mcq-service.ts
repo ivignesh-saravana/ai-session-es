@@ -272,3 +272,63 @@ export async function deleteMcq(id: string): Promise<void> {
   const db = await getDb();
   await db.prepare("DELETE FROM mcqs WHERE id = ?1").bind(id).run();
 }
+
+export type McqAttempt = {
+  id: string;
+  mcqId: string;
+  selectedChoiceId: string;
+  choiceLabel: string;
+  isCorrect: boolean;
+  createdAt: string;
+};
+
+type AttemptRow = {
+  id: string;
+  mcq_id: string;
+  selected_choice_id: string;
+  choice_label: string;
+  is_correct: number;
+  created_at: string;
+};
+
+function toAttempt(row: AttemptRow): McqAttempt {
+  return {
+    id: row.id,
+    mcqId: row.mcq_id,
+    selectedChoiceId: row.selected_choice_id,
+    choiceLabel: row.choice_label,
+    isCorrect: row.is_correct === 1,
+    createdAt: row.created_at,
+  };
+}
+
+export async function createAttempt(input: {
+  mcqId: string;
+  choiceId: string;
+}): Promise<McqAttempt> {
+  const mcq = await getMcqById(input.mcqId);
+  if (!mcq) {
+    throw new McqNotFoundError();
+  }
+
+  const choice = mcq.choices.find((item) => item.id === input.choiceId);
+  if (!choice) {
+    throw new McqValidationError("Choice does not belong to this question");
+  }
+
+  const db = await getDb();
+  const { results } = await db
+    .prepare(
+      `INSERT INTO mcq_attempts (mcq_id, selected_choice_id, choice_label, is_correct)
+       VALUES (?1, ?2, ?3, ?4)
+       RETURNING id, mcq_id, selected_choice_id, choice_label, is_correct, created_at`,
+    )
+    .bind(mcq.id, choice.id, choice.label, choice.isCorrect ? 1 : 0)
+    .all<AttemptRow>();
+
+  const row = results[0];
+  if (!row) {
+    throw new Error("Failed to record attempt");
+  }
+  return toAttempt(row);
+}

@@ -42,6 +42,20 @@ function createFakeD1() {
     statements.push({ sql, params });
     const compact = sql.replace(/\s+/g, " ").trim();
 
+    if (/^INSERT\s+INTO\s+mcq_attempts\b/i.test(compact)) {
+      const [mcqId, selectedChoiceId, choiceLabel, isCorrect] = params;
+      const now = nextTimestamp();
+      const row = {
+        id: nextId(),
+        mcq_id: String(mcqId),
+        selected_choice_id: String(selectedChoiceId),
+        choice_label: String(choiceLabel),
+        is_correct: Number(isCorrect),
+        created_at: now,
+      };
+      return { results: [row] };
+    }
+
     if (/^INSERT\s+INTO\s+mcqs\b/i.test(compact)) {
       const [name, description] = params as string[];
       const now = nextTimestamp();
@@ -400,5 +414,49 @@ describe("mcq service", () => {
     expect(preview?.choices[0]).not.toHaveProperty("is_correct");
 
     await expect(getMcqForPreview("missing")).resolves.toBeNull();
+  });
+
+  it("records an attempt with a label snapshot and server-computed isCorrect", async () => {
+    const { createMcq, createAttempt } = await import("./mcq-service");
+    const created = await createMcq(photosynthesis);
+    const correct = created.choices.find((choice) => choice.isCorrect);
+    const wrong = created.choices.find((choice) => !choice.isCorrect);
+    expect(correct && wrong).toBeTruthy();
+
+    const attempt = await createAttempt({
+      mcqId: created.id,
+      choiceId: correct!.id,
+    });
+    expect(attempt.mcqId).toBe(created.id);
+    expect(attempt.selectedChoiceId).toBe(correct!.id);
+    expect(attempt.choiceLabel).toBe(correct!.label);
+    expect(attempt.isCorrect).toBe(true);
+    expect(attempt).not.toHaveProperty("is_correct");
+
+    const wrongAttempt = await createAttempt({
+      mcqId: created.id,
+      choiceId: wrong!.id,
+    });
+    expect(wrongAttempt.isCorrect).toBe(false);
+
+    const insert = fakeDb.current?.statements.find((statement) =>
+      /INSERT\s+INTO\s+mcq_attempts\b/i.test(statement.sql),
+    );
+    expect(insert?.sql).toMatch(/\?1/);
+    expect(insert?.sql).toMatch(/\?4/);
+  });
+
+  it("rejects attempts for a missing question or a choice that is not on the question", async () => {
+    const { createMcq, createAttempt, McqNotFoundError, McqValidationError } =
+      await import("./mcq-service");
+    const created = await createMcq(photosynthesis);
+
+    await expect(
+      createAttempt({ mcqId: "missing", choiceId: created.choices[0].id }),
+    ).rejects.toBeInstanceOf(McqNotFoundError);
+
+    await expect(
+      createAttempt({ mcqId: created.id, choiceId: "not-a-choice" }),
+    ).rejects.toBeInstanceOf(McqValidationError);
   });
 });

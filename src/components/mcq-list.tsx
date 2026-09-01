@@ -171,6 +171,13 @@ export function McqList() {
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
+                        onClick={() =>
+                          router.push(`/mcqs/${mcq.id}/preview`)
+                        }
+                      >
+                        Preview
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         variant="destructive"
                         onClick={() => setDeleteId(mcq.id)}
                       >

@@ -9,7 +9,7 @@ Teachers can register, log in, and reach `/mcqs`, but that page is still a stub.
 
 This feature turns `/mcqs` into a question-bank list and adds create, edit, delete, and preview for multiple-choice questions, with a service layer and D1 tables for questions, choices, and attempts.
 
-**As of 2026-09-01**, Phases 1–4 are complete: teachers can list, create, edit, and delete questions in the UI. Preview and attempts remain Phase 5. Implementation continues one phase at a time.
+**As of 2026-09-01**, Phases 1–5 are complete: list/create/edit/delete, preview, and attempts. Phase 6 is lint, build, and a browser pass.
 
 ---
 
@@ -425,23 +425,21 @@ Implement **one phase at a time**. Do not start the next phase until the current
 
 **Phase gate**: Unit tests green. Full browser pass remains Phase 6. Do not start Phase 5 until asked.
 
-### Phase 5: Attempts service, attempt API, and preview UI - PLANNED
+### Phase 5: Attempts service, attempt API, and preview UI - COMPLETED
 
 **Objective**: Preview a question, submit a choice, persist an attempt, and show correct vs incorrect.
 
 **Red**
 
-1. Extend `mcq-service.test.ts` (or `mcq-attempt` tests):
-   - `createAttempt` inserts snapshot fields; `isCorrect` comes from the choice row
-   - unknown `mcqId` or `choiceId` not belonging to that question → typed error
-2. Route tests for `GET /api/mcqs/[id]/preview` and `POST /api/mcqs/[id]/attempts`
-3. Preview page component tests: loads preview payload (no `isCorrect` on choices); submit POSTs `choiceId`; shows correct/incorrect from the attempt response; Back goes to `/mcqs`
-4. Run `npm test` — **expect red**.
+1. Extended `mcq-service.test.ts` with `createAttempt` cases (snapshot + `isCorrect`; missing MCQ / wrong choice)
+2. Added `src/app/api/mcqs/[id]/preview/route.test.ts` and `attempts/route.test.ts`
+3. Added `src/components/mcq-preview.test.tsx` and a list test for the Preview menu item
+4. `npm test` — **red**: missing preview/attempt routes and `McqPreview`; `createAttempt is not a function`; Preview menuitem missing. Existing tests still passed.
 
 **Green**
 
-5. Service `createAttempt`; preview GET and attempts POST; preview page; enable **Preview** in the row dropdown
-6. Run `npm test` — **expect green**
+5. `createAttempt` on the MCQ service; `GET /api/mcqs/:id/preview`; `POST /api/mcqs/:id/attempts`; preview page; Preview in the row dropdown
+6. `npm test` — **green: 17 files, 87 tests passed**
 
 **Deliverables**:
 
@@ -449,7 +447,7 @@ Implement **one phase at a time**. Do not start the next phase until the current
 - Preview UI
 - Green tests for service, routes, and preview UI
 
-**Phase gate**: `npm test` green.
+**Phase gate**: Met. Do not start Phase 6 until asked.
 
 ### Phase 6: Verify - PLANNED
 
@@ -500,7 +498,7 @@ Module: `src/lib/services/mcq-service.ts`
 - Tests mock `@opennextjs/cloudflare` and an in-memory fake D1: `src/lib/services/mcq-service.test.ts`
 - Last recorded suite after Phase 2: **11 files, 49 tests, all green**
 
-`createAttempt` is **not** in this module yet (Phase 5).
+`createAttempt` is implemented in Phase 5 (`src/lib/services/mcq-service.ts:305`).
 
 ### Phase 3 as-built (2026-09-01)
 
@@ -512,12 +510,10 @@ Module: `src/lib/services/mcq-service.ts`
 - Route tests mock the service, not D1: `src/app/api/mcqs/route.test.ts`, `src/app/api/mcqs/[id]/route.test.ts`
 - Last recorded suite after Phase 3: **13 files, 66 tests, all green**
 
-Preview GET and attempts POST are **not** implemented yet (Phase 5).
-
 ### Phase 4 as-built (2026-09-01)
 
-- List: `src/components/mcq-list.tsx:37` — table, Create, logout, ellipsis menu (Edit/Delete only)
-- Delete confirm `Dialog`: `src/components/mcq-list.tsx:188-221`
+- List: `src/components/mcq-list.tsx:37` — table, Create, logout, ellipsis menu
+- Delete confirm `Dialog`: `src/components/mcq-list.tsx`
 - Shared form: `src/components/mcq-form.tsx:33` — create POST / edit PUT
 - Pages: `src/app/mcqs/page.tsx`, `src/app/mcqs/new/page.tsx`, `src/app/mcqs/[id]/edit/page.tsx`
 - shadcn: `src/components/ui/dropdown-menu.tsx`, `src/components/ui/textarea.tsx`
@@ -525,12 +521,14 @@ Preview GET and attempts POST are **not** implemented yet (Phase 5).
 - `McqStub` removed
 - Last recorded suite after Phase 4: **14 files, 74 tests, all green**
 
-### Key files (planned — Phase 5)
+### Phase 5 as-built (2026-09-01)
 
-- `src/app/api/mcqs/[id]/preview/route.ts` — GET preview (no answer key)
-- `src/app/api/mcqs/[id]/attempts/route.ts` — POST attempt
-- `src/app/mcqs/[id]/preview/page.tsx` — preview
-- `src/components/mcq-preview.tsx` — preview + submit
+- `createAttempt`: `src/lib/services/mcq-service.ts:305-334` — snapshots `choice_label` and `is_correct`; missing MCQ → `McqNotFoundError`; wrong choice → `McqValidationError`
+- `GET /api/mcqs/[id]/preview`: `src/app/api/mcqs/[id]/preview/route.ts` — `getMcqForPreview` (no `isCorrect`)
+- `POST /api/mcqs/[id]/attempts`: `src/app/api/mcqs/[id]/attempts/route.ts`
+- Preview UI: `src/components/mcq-preview.tsx`, page `src/app/mcqs/[id]/preview/page.tsx`
+- Preview menu item: `src/components/mcq-list.tsx`
+- Last recorded suite after Phase 5: **17 files, 87 tests, all green**
 
 ### Implementation patterns (follow existing auth code)
 
@@ -570,14 +568,14 @@ await db
 - [x] Save on create persists the question and choices and returns to `/mcqs` — POST `/api/mcqs` then `router.push("/mcqs")`
 - [x] Edit loads the question, Save updates it, Cancel does not save — GET then PUT; Cancel does not POST
 - [x] Exactly one correct choice is required; API and UI reject other counts — service + form default one correct; blank name blocked in UI
-- [x] Row actions use a vertical ellipsis dropdown with Edit and Delete (Preview after Phase 5)
+- [x] Row actions use a vertical ellipsis dropdown with Edit, Preview, and Delete
 - [x] Delete asks for confirmation, then removes the question (and cascaded choices/attempts) — confirm `Dialog` then `DELETE`
-- [ ] Preview does not include `isCorrect` on choices in the GET payload
-- [ ] Submitting a preview choice stores an attempt with selected choice, label snapshot, and server-computed `isCorrect`
-- [x] Routes do not contain SQL; the MCQ service is the only D1 access for these tables — handlers call `listMcqs` / `createMcq` / `getMcqById` / `updateMcq` / `deleteMcq`
+- [x] Preview does not include `isCorrect` on choices in the GET payload — `GET /api/mcqs/:id/preview`
+- [x] Submitting a preview choice stores an attempt with selected choice, label snapshot, and server-computed `isCorrect`
+- [x] Routes do not contain SQL; the MCQ service is the only D1 access for these tables — handlers call `listMcqs` / `createMcq` / `getMcqById` / `updateMcq` / `deleteMcq` / `getMcqForPreview` / `createAttempt`
 - [x] Existing register/login/logout still works; logout remains on the bank page — `McqList` logout test
-- [ ] Each implementation phase was red-then-green; no hollow tests
-- [ ] Tests cover failure paths (validation, 404, choice not on question)
+- [x] Each implementation phase was red-then-green; no hollow tests — Phases 1–5
+- [x] Tests cover failure paths (validation, 404, choice not on question)
 - [ ] `npm test`, `npm run lint`, and `npm run build` succeed after the last phase (record actual results)
 
 ---
@@ -592,7 +590,7 @@ await db
 | Choice limits | 2 default, max 6, cannot save 1 or 7 | Unit + form tests |
 | Preview honesty | Preview GET has no `isCorrect` on choices | Route/service tests |
 | Attempt accuracy | `isCorrect` matches the stored correct choice | Service tests |
-| Unit suite | All Vitest tests pass | `npm test` — **74 passed** after Phase 4 |
+| Unit suite | All Vitest tests pass | `npm test` — **87 passed** after Phase 5 |
 
 ---
 
@@ -702,7 +700,7 @@ Populate as issues are found during implementation. Known from the auth sprint a
 
 1. Start by reading Overview and Hypothesis
 2. Honor Scope (In/Out/Cut) — no sessions, no `user_id` on attempts, no Zod unless the user says yes
-3. **One phase at a time.** Phases 1–4 are done. Do not start Phase 5 (preview/attempts) unless the user asks. After a completed phase, get approval then commit and push to the current feature branch (`.cursor/rules/implementation.mdc`).
+3. **One phase at a time.** Phases 1–5 are done. Do not start Phase 6 (lint/build/browser) unless the user asks. After a completed phase, get approval then commit and push to the current feature branch (`.cursor/rules/implementation.mdc`).
 4. Add as-built details under Technical Implementation Details with `filepath:line-number`
 5. Mark acceptance criteria when they actually work
 6. Ask before new npm dependencies
@@ -716,16 +714,13 @@ Populate as issues are found during implementation. Known from the auth sprint a
 ## Current Status
 
 **Last Updated**: 2026-09-01
-**Current Phase**: Phase 4 complete. Phase 5 (preview + attempts) not started.
-**Status**: Phase 4 COMPLETED
+**Current Phase**: Phase 5 complete. Phase 6 (verify) not started.
+**Status**: Phase 5 COMPLETED
 
-**Phase 1 (COMPLETED)** — schema + local migration
-**Phase 2 (COMPLETED)** — MCQ service
-**Phase 3 (COMPLETED)** — HTTP CRUD APIs
-**Phase 4 (COMPLETED)**
-- Red: missing `./mcq-list` and `./mcq-form`
-- Green: list/form UI + tests; **74 tests passed**
-- Preview omitted from the actions menu until Phase 5
-- Browser end-to-end still Phase 6
+**Phase 4 (COMPLETED)** — list/create/edit/delete UI; pushed as `34df520`
+**Phase 5 (COMPLETED)**
+- Red: missing preview/attempt routes and `createAttempt`; Preview menu missing
+- Green: **87 tests passed**
+- Preview GET omits the answer key; attempts snapshot correctness on the server
 
-**Next Steps**: When asked, start **Phase 5** only. Ask for approval before committing this phase.
+**Next Steps**: When asked, start **Phase 6** (lint, build, browser). Ask for approval before committing this phase.
