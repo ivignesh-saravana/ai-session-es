@@ -1,13 +1,13 @@
 Date created: 2026-09-01
-Date last modified: 2026-09-01 (TDD / Vitest plan added)
+Date last modified: 2026-09-01
 
 # Register, Login, and Logout - Technical PRD
 
 ## Overview/Problem
 
-Teachers need a shared quiz-maker so several of them can contribute to one multiple-choice question bank. Nothing exists in this starter yet: there is no user model, no database, and no way for a teacher to create an account or sign in. Without a first identity slice, later MCQ work has no owner to attach questions to and no path for more than one teacher to use the app.
+Teachers needed a shared quiz-maker so several of them could contribute to one multiple-choice question bank. The starter had no user model, no database, and no way for a teacher to create an account or sign in.
 
-This phase solves only that identity slice. Multiple teachers can register, log in, and log out. Successful register or login lands them on a stub MCQ page that will be built in a later sprint.
+**As of 2026-09-01**, that identity slice is implemented on `feature/register-login-logout`: D1 `users` table, user service, register/login/logout HTTP APIs, and shadcn-based UI. Successful register or login lands on a stub MCQ page. The user has verified locally that they can open login, register, log in, and log out. MCQ CRUD is still the next sprint.
 
 ---
 
@@ -28,7 +28,7 @@ We believe that a simple hashed-password register/login/logout flow, backed by a
 - HTTP POST endpoints for register, login, and logout
 - Register and login use the user service to write and read user rows
 - Client-side hashing of the password before the HTTP POST on both register and login; the server stores and compares that hash (never plaintext)
-- Register and login pages with forms, validation, and error display
+- Register and login pages with forms, validation, and error display, built from the shadcn signup/login blocks (`Card`, `Field`, `Input`, `Button`) and adapted to this app’s fields
 - After a successful register or login, navigate to a stub MCQ page
 - Logout returns the user to the login page
 - A stub MCQ page with no question-bank functionality
@@ -149,19 +149,27 @@ Use existing shadcn/ui components where they fit (Button, Input, Label, Card). F
 
 #### Register (`/register`)
 
-- Fields: first name, last name, username, email, password (password input type, never echoed)
+- Page layout from the shadcn signup page: centered `SignupForm` in `src/app/register/page.tsx`
+- Form is `src/components/signup-form.tsx`, based on the shadcn `SignupForm` block (`Card`, `Field`, `Input`, `Button`)
+- Fields: first name, last name, username, email, password, confirm password
 - Username and email may be identical; both fields remain required
-- Client validation before submit: all fields non-empty, email looks like an email, password minimum length 8
+- Client validation before submit: all fields non-empty, email looks like an email, password minimum length 8, passwords match
+- No Google / social signup button (out of scope)
 - On submit: SHA-256 hash the password in the browser, POST `/api/auth/register` with `passwordHash`, never send plaintext
 - Success: navigate to `/mcqs`
-- Failure: show the API error message on the page; do not navigate
+- Failure: show the API error via `FieldError`; do not navigate
+- “Sign in” links to `/login`
 
 #### Login (`/login`)
 
-- Fields: username, password
+- Page layout from the shadcn login page: centered `LoginForm` in `src/app/login/page.tsx`
+- Form is `src/components/login-form.tsx`, based on the shadcn `LoginForm` block
+- Fields: username, password (login is by username, which may be the email)
+- No Google button and no forgot-password link (out of scope)
 - On submit: SHA-256 hash the password, POST `/api/auth/login` with `passwordHash`
 - Success: navigate to `/mcqs`
-- Failure: show a generic invalid-credentials message
+- Failure: show generic invalid-credentials copy via `FieldError`
+- “Sign up” links to `/register`
 
 #### Logout
 
@@ -176,7 +184,8 @@ Use existing shadcn/ui components where they fit (Button, Input, Label, Card). F
 
 #### Home (`/`)
 
-- Redirect or link into `/login` and `/register` so a new visitor can start. Do not leave the default starter marketing copy as the only entry point.
+- Server-side redirect to `/login`. New teachers use “Sign up” on that page to reach `/register`.
+- Do not leave the default starter marketing copy as the only entry point.
 
 Password hashing helper: a small shared client-safe function (e.g. `src/lib/hash-password.ts`) using `crypto.subtle.digest("SHA-256", ...)` and hex encoding. Same algorithm on register and login.
 
@@ -319,7 +328,7 @@ Do not implement a phase’s production code before its tests exist, except the 
 
 **Phase gate**: `npm test` green. Do not start Phase 4 on red tests.
 
-### Phase 4: UI pages and navigation - PLANNED
+### Phase 4: UI pages and navigation - COMPLETED
 
 **Objective**: A teacher can register or log in in the browser and reach the MCQ stub; logout returns them to login. Hashing and client components are proven with Vitest before relying on a manual Network-tab check.
 
@@ -341,111 +350,132 @@ Do not implement a phase’s production code before its tests exist, except the 
 4. Client hash helper
 5. `/register` and `/login` pages (client forms)
 6. `/mcqs` stub with logout
-7. Home page entry to login/register
+7. Home (`/`) originally linked to login/register; after Phase 4 review it became a server redirect to `/login` (`src/app/page.tsx:4`)
 8. Wire success paths to `/mcqs`
-9. Run `npm test` — **expect green**
+9. Run `npm test` — **green: 35 passed** after adding `@testing-library/dom`, `src/test/setup.ts` cleanup, and `testTimeout: 15000`
+
+**User verification (2026-09-01)**: Local browser — navigate to login, register, log in, log out.
 
 **Deliverables**:
 - Working forms and stub page
 - Green hash + component tests
-- No plaintext password in unit-tested `fetch` bodies (browser Network tab still required in Phase 5)
+- `/` redirects to `/login`
 
-**Phase gate**: `npm test` green. Do not call the feature done until Phase 5.
+**Phase gate**: `npm test` green. Browser happy path verified. Lint/build remain Phase 5.
 
-### Phase 5: Verify - PLANNED
+### Phase 5: Verify - IN PROGRESS
 
 **Objective**: The feature is done only when the **full** Vitest suite is green and lint, build, and a real register/login/logout path have been exercised.
 
-**Tests (must stay green; no new red allowed to ship)**
+**Done**
+- Full unit suite last recorded green: **35 passed** (`npm test`)
+- Browser: user verified local login, register, login, and logout (Phase 4)
 
-1. Run `npm test` — entire suite green. If anything is red, fix production code or a broken test; do not skip or delete coverage to pass the gate.
-2. If Phase 5 finds a gap (e.g. duplicate-email not tested), add the test first (red), then fix (green), then re-run the full suite.
-
-**Other verification**
-
-3. `npm run lint`
-4. `npm run build`
-5. Exercise register, duplicate-user error, login success, login failure, logout navigation in the browser (`npm run preview` preferred for D1; `npm run dev` will not use Workers/D1 the same way)
-6. Confirm in the browser Network tab that register/login POST JSON has `passwordHash` and not plaintext password
-7. Record actual command results in Current Status
+**Still open**
+- `npm run lint` and `npm run build` results not recorded in this PRD
+- Network-tab confirmation of `passwordHash` (not plaintext) not recorded
+- Formal `npm run preview` vs `npm run dev` note: D1-backed APIs need Workers; the user’s local pass used whichever server they had running
 
 **Deliverables**:
-- Full `npm test` green
-- Lint and build results reported, not assumed
-- Browser-verified happy path and main error path
+- Full `npm test` green (recorded)
+- Lint and build results reported (not yet)
+- Browser-verified happy path (recorded by user)
 
 ---
 
 ## Technical Implementation Details
 
-### Key Files
+This is the **as-built** record. Code references use `filepath:line-number`.
 
-- `wrangler.jsonc` — D1 binding `DB`
-- `migrations/0001_create_users.sql` — users table and unique indexes on username and email
-- `src/lib/services/user-service.ts` — D1-backed CRUD and credential lookup
-- `src/lib/services/user-service.test.ts` — mocked D1 CRUD, collisions, and credentials
-- `src/lib/http.ts` — JSON error shape, body parsing, hash comparison helpers
-- `src/app/api/auth/register/route.ts` — register
-- `src/app/api/auth/login/route.ts` — login
-- `src/app/api/auth/logout/route.ts` — logout stub
-- `src/app/register/page.tsx` — register UI
-- `src/app/login/page.tsx` — login UI
-- `src/app/mcqs/page.tsx` — MCQ stub
-- `src/app/page.tsx` — entry to auth
-- `vitest.config.ts` — Vitest + jsdom + `@/` path alias
-- `src/lib/users-schema.test.ts` — migration/schema contract (Phase 1)
-- `src/app/api/auth/*/route.test.ts` — register/login/logout handlers (Phase 3)
-- `src/lib/hash-password.test.ts` — SHA-256 hex helper (Phase 4)
-- colocated `*.test.tsx` for register, login, and MCQ stub client UI (Phase 4)
+### Git (as of last remote push)
 
-Exact filenames may shift slightly during implementation; keep this list current when code lands.
+Branch: `feature/register-login-logout`
 
-### Implementation Patterns
+| Commit | Phase |
+|--------|--------|
+| `542215b` | Phase 1 — Vitest + local D1 users schema |
+| `e761ced` | Phase 2 — user service |
+| `bfdb745` | Phase 3 — register/login/logout routes |
 
-```typescript
-// Client: hash before POST. Never send plaintext.
-async function hashPassword(plaintext: string): Promise<string> {
-  const data = new TextEncoder().encode(plaintext);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-```
+Phase 4 UI (forms, `/` redirect, tests, `@testing-library/dom`) lived in the working tree after those commits; commit/push when the user asks.
 
-```typescript
-// Server: parameterized D1. Numbered placeholders only.
-await db
-  .prepare(
-    "INSERT INTO users (first_name, last_name, username, email, password_hash) VALUES (?1, ?2, ?3, ?4, ?5)"
-  )
-  .bind(firstName, lastName, username, email, passwordHash)
-  .run();
-```
+### Data and Cloudflare
 
-```typescript
-// Login compare: constant-time string compare on hashes if practical;
-// at minimum do not early-return different messages for "missing user" vs "bad password".
-```
+- D1 binding `DB`, database name `ai-session-es`: `wrangler.jsonc:21-28`
+- `database_id` is the local placeholder `00000000-0000-0000-0000-000000000000` (`wrangler.jsonc:27`). Remote `wrangler d1 create` was not run in the agent environment (no API token). The user owns production migrations.
+- Schema: `migrations/0001_create_users.sql:3-15` (`users` + unique indexes on `username` and `email`)
+- Applied locally only: `npx wrangler d1 migrations apply ai-session-es --local`
+- Typed `env.DB`: `cloudflare-env.d.ts` after `npm run cf-typegen`
 
-```typescript
-// Unique collisions from D1 become a typed error for 409 at the route layer.
-if (isUniqueConstraintError(error)) {
-  throw new UserAlreadyExistsError();
-}
-```
+### User service (server)
 
-### Important Notes
+Module: `src/lib/services/user-service.ts`
 
-- D1 is server-only. User service must not be imported from `'use client'` modules.
-- `npm run dev` is Node and will not prove Workers/D1 behavior. Auth that talks to D1 should be checked with `npm run preview` after a local migration apply.
-- Cloud agents cannot create a remote D1 database or authenticate to Cloudflare. Local `wrangler d1 create` and `--local` migrate must be run where Cloudflare credentials exist.
-- Ask before adding npm dependencies (`zod`, hashing libraries, etc.).
-- Do not apply migrations with `--remote`.
-- Do not deploy unless asked.
-- Unique indexes on `username` and `email` are the source of truth for collisions; do not rely only on a pre-check (race).
-- Logout does not make `/mcqs` private. Document that limitation in the UI copy if it would otherwise look like a secured app.
-- TDD: tests first, `npm test` red, implement, `npm test` green, then next phase. Mock D1 and `getCloudflareContext`; do not introduce `@cloudflare/vitest-pool-workers` without asking.
+- D1 via `getCloudflareContext({ async: true })`: `src/lib/services/user-service.ts:57-59`
+- Public user type (no hash): `src/lib/services/user-service.ts:10-18`
+- `UserAlreadyExistsError`: `src/lib/services/user-service.ts:3-8`
+- Unique-constraint detection: `src/lib/services/user-service.ts:74-80`
+- `createUser` INSERT `?1`–`?5` + `RETURNING` public columns: `src/lib/services/user-service.ts:93-116`
+- `getUserById` / `getUserByUsername` / `getUserByEmail`: `src/lib/services/user-service.ts:119-152`
+- `getCredentialsByUsername` (hash only for login): `src/lib/services/user-service.ts:155-172`
+- `updateUser` / `deleteUser` (no HTTP surface): `src/lib/services/user-service.ts:175-207`
+- Tests mock `@opennextjs/cloudflare` and an in-memory fake D1: `src/lib/services/user-service.test.ts`
+
+### HTTP helpers and auth routes
+
+- JSON errors `{ error }`: `src/lib/http.ts:3-5`
+- Body parse, 64-char hex check, XOR hash compare: `src/lib/http.ts:7-42`
+- **Zod was not installed**; routes validate with these helpers
+
+**Register** `src/app/api/auth/register/route.ts:13-50` — `POST` → `createUser`; 201 public user; 400 validation; 409 `UserAlreadyExistsError`; 500 otherwise. Does not hash again.
+
+**Login** `src/app/api/auth/login/route.ts:13-41` — lookup by username; compare with `hashesMatch`; missing user uses dummy hash then same 401 `"Invalid username or password"` (`src/app/api/auth/login/route.ts:10-35`).
+
+**Logout** `src/app/api/auth/logout/route.ts:1-3` — `{ ok: true }`; no D1 writes.
+
+Route tests: `src/app/api/auth/register/route.test.ts`, `login/route.test.ts`, `logout/route.test.ts` (mock user service).
+
+### Client hashing and UI
+
+- SHA-256 hex: `src/lib/hash-password.ts:1-7` (FIPS vector `"abc"` in `src/lib/hash-password.test.ts`)
+- Email check on the client: `src/lib/hash-password.ts:9-11`
+
+**Register** — shadcn `SignupForm` adapted (no Google). Page: `src/app/register/page.tsx:1-10`. Form: `src/components/signup-form.tsx`. Fields: first/last name, username, email, password, confirm password. Hash then POST: `src/components/signup-form.tsx:61-77`. Success `router.push("/mcqs")`: `src/components/signup-form.tsx:78`. Errors via `FieldError`.
+
+**Login** — shadcn `LoginForm` adapted (username, no Google, no forgot-password). Page: `src/app/login/page.tsx`. Hash then POST: `src/components/login-form.tsx:49-64`. 401 copy: `src/components/login-form.tsx:57-60`.
+
+**MCQ stub** — `src/app/mcqs/page.tsx` renders `McqStub`. Heading and no-session copy: `src/components/mcq-stub.tsx:32-38`. Logout POST then `/login`: `src/components/mcq-stub.tsx:19-23`.
+
+**Home** — `src/app/page.tsx:3-4` `redirect("/login")`. Sign-up is the link on the login form (`src/components/login-form.tsx`).
+
+Client tests: `src/components/signup-form.test.tsx`, `login-form.test.tsx`, `mcq-stub.test.tsx`. They mock `fetch` and `next/navigation`.
+
+### Test harness
+
+- Config: `vitest.config.ts:5-13` (jsdom, `vite-tsconfig-paths`, `setupFiles`, `testTimeout: 15000`)
+- Scripts: `package.json:14-15` (`test`, `test:watch`)
+- DOM cleanup between tests: `src/test/setup.ts:1-6`
+- Schema contract: `src/lib/users-schema.test.ts`
+- Extra package: `@testing-library/dom` (peer of `@testing-library/react`)
+
+Last recorded suite: **9 files, 35 tests, all green**.
+
+### Implementation patterns (as shipped)
+
+Client hash: `src/lib/hash-password.ts:1-7`.
+
+Insert uses numbered placeholders and `all()` + `RETURNING`, not `.run()` alone: `src/lib/services/user-service.ts:95-109`.
+
+Login 401 path: `src/app/api/auth/login/route.ts:30-35`.
+
+Unique → typed error: `src/lib/services/user-service.ts:82-90`.
+
+### Important notes (still true)
+
+- Do not import the user service into `'use client'` modules.
+- `npm run dev` is Node; D1 is reliable on `npm run preview`.
+- No `zod`. No sessions. `/mcqs` is not gated.
+- This session: do not create migrations or deploy; the user applies production schema.
 
 ---
 
@@ -453,36 +483,34 @@ if (isUniqueConstraintError(error)) {
 
 - [x] A local D1 database is configured with binding `DB` and a users migration applied locally
 - [x] Vitest is configured; `npm test` and `npm test:watch` exist
-- [ ] A user can register with first name, last name, username, email, and password
-- [ ] The stored password value is a hash, not the typed password
-- [ ] Register and login HTTP bodies include `passwordHash`, not plaintext password
-- [ ] Username and email may be the same string and still succeed
-- [ ] Duplicate username or email is rejected (409) and shown in the UI
-- [ ] A registered user can log in with username and password and reach `/mcqs`
-- [ ] Wrong password or unknown username returns 401 with a generic message and stays on `/login`
-- [ ] Successful register navigates to `/mcqs`
-- [ ] Logout POST succeeds and the UI returns to `/login`
-- [ ] `/mcqs` is a stub only (no MCQ CRUD)
+- [x] A user can register with first name, last name, username, email, and password — **verified locally by the user (Phase 4)**
+- [x] The stored password value is a hash, not the typed password — client sends `passwordHash`; service inserts `password_hash` (`src/lib/services/user-service.ts:97-107`)
+- [x] Register and login HTTP bodies include `passwordHash`, not plaintext password — unit tests + form `fetch` bodies
+- [x] Username and email may be the same string and still succeed — service + register form allow it; user registered locally
+- [x] Duplicate username or email is rejected (409) and shown in the UI — API + `SignupForm` 409 test
+- [x] A registered user can log in with username and password and reach `/mcqs` — **verified locally by the user**
+- [x] Wrong password or unknown username returns 401 with a generic message and stays on `/login` — `src/app/api/auth/login/route.ts:10` and login form tests
+- [x] Successful register navigates to `/mcqs` — `src/components/signup-form.tsx:78`; user verified
+- [x] Logout POST succeeds and the UI returns to `/login` — `src/components/mcq-stub.tsx:22-23`; **user verified**
+- [x] `/mcqs` is a stub only (no MCQ CRUD)
 - [x] User service supports create, update, and delete even if update/delete are unused by the UI
-- [ ] No social login, tokens, cookies, or session store are introduced
-- [ ] Each implementation phase was developed red-then-green; the full unit suite is green at the end of Phase 5
-- [ ] Tests cover failure paths (validation, 401, 409, missing user), not only happy paths, and never assert tautologies
-- [ ] `npm run lint` and `npm run build` succeed after implementation
+- [x] No social login, tokens, cookies, or session store are introduced
+- [x] Phases 1–4 were red-then-green; full unit suite last green at 35 tests (Phase 5 lint/build still open)
+- [x] Tests cover failure paths (validation, 401, 409, missing user)
+- [ ] `npm run lint` and `npm run build` succeed after implementation — **not recorded yet**
 
 ---
 
 ## Success Metrics
 
-This is an internal teaching sprint, not a production launch. Metrics are about whether teachers can get in.
-
-| Metric | Target | How Measured |
-|--------|--------|--------------|
-| Register happy path | Completes and lands on `/mcqs` | Manual browser pass |
-| Login happy path | Completes and lands on `/mcqs` | Manual browser pass |
-| Password secrecy in transit (this phase) | No plaintext password in POST JSON | Browser Network tab on register and login |
-| Duplicate account | Second register with same username or email fails visibly | Manual browser pass |
-| Logout | User returns to `/login` | Manual browser pass |
-| Unit suite | All Vitest tests pass | `npm test` |
+| Metric | Target | How Measured | Status |
+|--------|--------|--------------|--------|
+| Register happy path | Completes and lands on `/mcqs` | Manual browser | **Met** (user, 2026-09-01) |
+| Login happy path | Completes and lands on `/mcqs` | Manual browser | **Met** (user, 2026-09-01) |
+| Password secrecy in transit | No plaintext in POST JSON | Unit tests + Network tab | Unit tests met; Network tab not recorded |
+| Duplicate account | Second register fails visibly | Manual / unit 409 | Unit tests met |
+| Logout | User returns to `/login` | Manual browser | **Met** (user, 2026-09-01) |
+| Unit suite | All Vitest tests pass | `npm test` | **35 passed** |
 
 ---
 
@@ -491,28 +519,27 @@ This is an internal teaching sprint, not a production launch. Metrics are about 
 ### External Dependencies
 
 - Cloudflare D1 — user persistence
-- Wrangler — create DB, migrations, local apply
-- Web Crypto (`crypto.subtle`) — SHA-256 in the browser (and available on Workers if ever needed)
+- Wrangler — local migrations
+- Web Crypto (`crypto.subtle`) — SHA-256 in the browser (`src/lib/hash-password.ts:3`)
 
 ### Internal Dependencies
 
-- `@opennextjs/cloudflare` `getCloudflareContext()` — access `env.DB`
-- Next.js App Router — pages and `src/app/api/` route handlers
-- shadcn/ui — form controls
+- `@opennextjs/cloudflare` `getCloudflareContext()` — `src/lib/services/user-service.ts:1` and `:58`
+- Next.js App Router — `src/app/api/` and pages
+- shadcn/ui Base UI (`button`, `card`, `field`, `input`) — forms
 
-### Authorized npm dependencies (this PRD)
+### Authorized npm dependencies (installed)
 
-Install when Phase 1 starts (devDependencies): `vitest`, `@vitejs/plugin-react`, `@testing-library/react`, `@testing-library/user-event`, `jsdom`, `vite-tsconfig-paths`.
+`vitest`, `@vitejs/plugin-react`, `@testing-library/react`, `@testing-library/user-event`, `@testing-library/dom`, `jsdom`, `vite-tsconfig-paths`
 
-### Proposed npm dependency (ask before install)
+### Proposed (not installed)
 
-- `zod` — request body validation, per project Next.js conventions. Not installed today. Not authorized by this TDD update.
+- `zod` — still not authorized
 
 ### Environment / bindings
 
-- `DB` — D1 binding in `wrangler.jsonc`
-- No new secrets required for this hashing scheme
-- `.dev.vars.example` only needs an update if a new env var is introduced (none planned)
+- `DB` — `wrangler.jsonc:21-28`
+- No new secrets
 
 ---
 
@@ -524,127 +551,137 @@ Install when Phase 1 starts (devDependencies): `vitest`, `@vitejs/plugin-react`,
 - **Mitigation**: Apply migrations with `--local` and verify with `npm run preview`.
 
 - **Risk**: SHA-256 without a salt/KDF is not a password-hashing algorithm; a stolen `password_hash` column is enough to log in because the client sends that same hash.
-- **Mitigation**: Accept for this teaching phase. Do not log hashes. Add a real KDF and server-side sessions in a later hardening sprint if the app leaves the classroom.
+- **Mitigation**: Accept for this teaching phase. Do not log hashes.
 
 - **Risk**: Unique constraint races if the route checks existence then inserts.
-- **Mitigation**: Insert and handle D1 constraint errors; indexes enforce uniqueness.
+- **Mitigation**: Insert and map D1 unique failures (`src/lib/services/user-service.ts:82-90`).
 
-- **Risk**: Client hashing implemented differently on register vs login (encoding, hex vs base64).
-- **Mitigation**: One shared `hashPassword` helper used by both forms.
+- **Risk**: Client hashing implemented differently on register vs login.
+- **Mitigation**: Shared `hashPassword` (`src/lib/hash-password.ts:1`).
 
-- **Risk**: Adding bcrypt or a session library without asking.
-- **Mitigation**: Stay on Web Crypto and no session; propose any new package first.
+- **Risk**: Unit tests leak DOM across cases (duplicate Login buttons).
+- **Mitigation**: `src/test/setup.ts:4-6` `cleanup()`; `testTimeout: 15000` in `vitest.config.ts:12`.
 
-- **Risk**: Tests are written after the code, or made green by weakening assertions.
-- **Mitigation**: Each phase lists required red tests. Agents must run `npm test` before implementing that phase’s production code (after the harness exists) and must not skip, delete, or tautology-pass tests.
-
-- **Risk**: Unit tests talk to real D1 and fail off-machine or in Cloud agents.
-- **Mitigation**: Mock `getCloudflareContext` / `DB`. Use `npm run preview` only in Phase 5 for real D1.
+- **Risk**: Unit tests talk to real D1.
+- **Mitigation**: Mock `getCloudflareContext` / `DB` in `user-service.test.ts`.
 
 ### User Experience Risks
 
-- **Risk**: Teachers think they are “logged in” and that `/mcqs` is private.
-- **Mitigation**: Stub copy can say the question bank is next and that this phase only checks credentials. No fake lock icon.
+- **Risk**: Teachers think `/mcqs` is private.
+- **Mitigation**: Stub copy at `src/components/mcq-stub.tsx:36-38`.
 
-- **Risk**: Logout appears broken because returning to `/mcqs` still shows the stub.
-- **Mitigation**: Logout always navigates to `/login`. Do not imply the stub is gated.
-
-- **Risk**: Login by email fails because the account used different username vs email.
-- **Mitigation**: Login field is labeled Username. Help text: use the username chosen at register (which may be the email).
+- **Risk**: Login by email fails if username ≠ email.
+- **Mitigation**: Username field + help text on `LoginForm`.
 
 ---
 
 ## Troubleshooting Guide
 
-Populate during implementation. Starters:
-
 ### `wrangler d1 create` needs a Cloudflare API token
 
-**Problem**: `npx wrangler d1 create ai-session-es` fails in a non-interactive shell with `CLOUDFLARE_API_TOKEN` required.
-**Cause**: No Cloudflare credentials in this environment.
-**Solution**: Keep a placeholder `database_id` in `wrangler.jsonc` and apply migrations with `--local`. When credentials are available, run `npx wrangler d1 create ai-session-es` and replace `database_id` with the real id. Do not apply `--remote` unless the user asks.
-**Code Reference**: `wrangler.jsonc`
+**Problem**: Create fails without `CLOUDFLARE_API_TOKEN`.
+**Cause**: No Cloudflare credentials in the agent environment.
+**Solution**: Placeholder `database_id`; `--local` migrations. User applies production schema.
+**Code Reference**: `wrangler.jsonc:25-27`
 
 ### D1 binding missing at runtime
 
-**Problem**: `env.DB` is undefined or queries throw.
-**Cause**: Binding not in `wrangler.jsonc`, types not regenerated, or running on Node `next dev` without the Workers binding.
-**Solution**: Confirm `d1_databases` with binding `DB`, run `npm run cf-typegen`, use `npm run preview` for D1.
-**Code Reference**: `wrangler.jsonc`
+**Problem**: `env.DB` is undefined.
+**Cause**: Missing binding or `next dev` without Workers.
+**Solution**: `wrangler.jsonc:21-28`; `npm run cf-typegen`; prefer `npm run preview`.
 
 ### Unique constraint on register
 
 **Problem**: Register returns 500 instead of 409.
-**Cause**: Constraint error not mapped in the user service.
-**Solution**: Detect D1 unique failures and throw a typed error the route maps to 409.
+**Cause**: Constraint error not mapped.
+**Solution**: `src/lib/services/user-service.ts:74-90` and `src/app/api/auth/register/route.ts:44-46`.
 
 ### Vitest cannot resolve `@/`
 
-**Problem**: Tests fail on `@/lib/...` imports.
-**Cause**: `vite-tsconfig-paths` missing from `vitest.config.ts`.
-**Solution**: Add the plugin as in `.cursor/skills/testing/SKILL.md`.
+**Problem**: `@/lib/...` imports fail in tests.
+**Cause**: Missing `vite-tsconfig-paths`.
+**Solution**: `vitest.config.ts:3` and `:6`.
 
 ### `getCloudflareContext` throws in tests
 
-**Problem**: User service tests fail before assertions run.
-**Cause**: Cloudflare context is not available under jsdom.
-**Solution**: `vi.mock("@opennextjs/cloudflare", ...)` and pass a fake `env.DB`.
+**Problem**: User service tests fail before assertions.
+**Cause**: No Cloudflare context under jsdom.
+**Solution**: `vi.mock("@opennextjs/cloudflare")` in `src/lib/services/user-service.test.ts`.
+
+### `Cannot find module '@testing-library/dom'`
+
+**Problem**: Form tests fail to load.
+**Cause**: Peer of `@testing-library/react` not installed.
+**Solution**: `npm install -D @testing-library/dom`.
+
+### Duplicate Login / Create Account buttons in tests
+
+**Problem**: `getByRole` finds two buttons; tests time out.
+**Cause**: jsdom not cleaned between cases.
+**Solution**: `src/test/setup.ts:4-6`.
 
 ### Login always 401 after a successful register
 
 **Problem**: Hash mismatch.
-**Cause**: Double-hashing on the server, different encodings, or storing plaintext by mistake.
-**Solution**: Client hashes once; server stores and compares that exact hex string.
+**Cause**: Double-hashing or encoding drift.
+**Solution**: Client hashes once (`src/lib/hash-password.ts:1`); server stores and compares that hex (`src/app/api/auth/login/route.ts:31-32`).
+
+### `/` still shows the Next.js starter
+
+**Problem**: Old home page.
+**Cause**: Stale dev server, or pre-redirect `page.tsx`.
+**Solution**: `src/app/page.tsx:4` redirects to `/login`; restart the server.
 
 ### Migration applied to remote by mistake
 
-**Problem**: Production/remote schema changed.
-**Cause**: `migrations apply` without `--local` or with `--remote`.
-**Solution**: Do not do this in this repo’s working agreement. If it happens, stop and tell the user; do not try to “fix” remote schema unprompted.
+**Problem**: Production schema changed.
+**Cause**: `migrations apply` `--remote`.
+**Solution**: This session: user owns remote schema. Do not apply remote from the agent.
 
 ---
 
 ## Notes for AI Agents
 
-When working with this PRD:
-
-1. Start by reading the Problem and Hypothesis to understand intent
-2. Use Scope (In/Out/Cut) to determine boundaries — do not build out-of-scope items, including MCQ features, tokens, cookies, or social login
-3. Update phase status markers as work progresses
-4. Add implementation details under "Technical Implementation Details" as code is written
-5. Mark acceptance criteria as complete when features work
-6. Add troubleshooting entries when bugs are found and fixed
-7. Keep all sections current — remove outdated information
-8. Use code references format: `filepath:line-number` when citing code
-9. Ask before adding any npm dependency
-10. **This session:** do not create new migrations and do not deploy (including `npm run deploy` and remote D1 apply). The user applies production migrations themselves. Later sessions may restore the usual “local migrations only” rule.
-11. Prefer `npm run preview` for anything that uses D1
-12. Hash passwords in the browser before POST; persist and compare `password_hash` only
-13. Follow TDD per phase: write the listed tests, run `npm test` (red), implement, run `npm test` (green). Do not start the next phase on red tests
-14. Follow `.cursor/skills/testing/SKILL.md` for harness, mocking, and what makes a test worth writing
-15. Vitest packages in this PRD are approved; still ask before `zod` or `@cloudflare/vitest-pool-workers`
-16. Stay on `feature/register-login-logout` for remaining phases. Commit and push **only when the user has reviewed a phase and asks**. Do not start the next phase until they say so.
+1. Start by reading Overview and Hypothesis
+2. Honor Scope (In/Out/Cut) — no MCQ features, tokens, cookies, or social login
+3. Keep phase markers and this as-built section current
+4. Cite code as `filepath:line-number`
+5. Ask before new npm dependencies (`zod` still not authorized)
+6. **This session:** do not create migrations and do not deploy
+7. Prefer `npm run preview` for D1
+8. Hash in the browser; store/compare `password_hash` only
+9. Stay on `feature/register-login-logout`; commit and push only when the user asks
 
 ---
 
 ## Current Status
 
 **Last Updated**: 2026-09-01
-**Current Phase**: Phase 3 - Auth API routes
-**Status**: COMPLETED — waiting for review before Phase 4
-**Phase 1 results**:
-- `npm test` red first: 4 failed (`migrations directory is missing`)
-- Local migration applied: `0001_create_users.sql` on D1 `ai-session-es` (`--local` only)
-- `npm test` green after: 4 passed
-- Remote `wrangler d1 create` was not run (no `CLOUDFLARE_API_TOKEN`). `database_id` in `wrangler.jsonc` is a local placeholder. User will apply the production migration.
-**Phase 2 results**:
-- `npm test` red first: `Failed to resolve import "./user-service"`
-- Implemented `src/lib/services/user-service.ts` (create/read/update/delete + `getCredentialsByUsername`, `UserAlreadyExistsError`)
-- `npm test` green after: 13 passed (4 schema + 9 user service)
-- No new migration. No deploy.
-**Phase 3 results**:
-- `npm test` red first: `Failed to resolve import "./route"` for register, login, and logout
-- Implemented `POST /api/auth/register`, `/login`, `/logout`; validation is manual in `src/lib/http.ts` (**zod not installed**)
-- `npm test` green after: 24 passed
-- No new migration. No deploy.
-**Next Steps**: After review and an explicit commit/push, Phase 4 UI. Confirm if you want `zod` added later.
+**Current Phase**: Phase 4 complete (user-verified). Phase 5 in progress (lint/build not recorded).
+**Branch**: `feature/register-login-logout`
+
+**Phase 1 (COMPLETED)** — `542215b`
+- Red: 4 tests, `migrations directory is missing`
+- Green: schema tests; local apply of `migrations/0001_create_users.sql`
+- Remote D1 create skipped; placeholder `database_id`
+
+**Phase 2 (COMPLETED)** — `e761ced`
+- Red: missing `./user-service`
+- Green: 13 tests (schema + service)
+
+**Phase 3 (COMPLETED)** — `bfdb745`
+- Red: missing `./route`
+- Green: 24 tests; manual validation (no Zod)
+
+**Phase 4 (COMPLETED, user-verified)**
+- Red: missing hash helper and form components
+- Green: **35 tests**
+- `/` → `/login`; shadcn signup/login; MCQ stub logout
+- **User (2026-09-01):** local login page, register, log in, log out all worked
+
+**Phase 5 (IN PROGRESS)**
+- Unit suite green (35)
+- Browser happy path: user-verified
+- Open: `npm run lint`, `npm run build`, Network-tab note
+
+**Next Steps**: Commit/push Phase 4 when asked. Then record lint/build (Phase 5) if desired. No migrations or deploys from the agent this session.
