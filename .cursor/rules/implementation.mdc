@@ -1,0 +1,20 @@
+---
+description: After each implementation phase, get user approval then commit and push to the current feature branch
+alwaysApply: true
+---
+
+# Implementation phase git workflow
+
+When a **PRD implementation phase** (or equivalent scoped slice) is complete:
+
+1. **Stop.** Do not start the next phase unless the user asked for it.
+2. **Ask for approval** before any git write. Summarize what would be committed (files and phase name). Wait for an explicit yes (for example “commit and push”, “approved”, “yes”).
+3. **After approval only**, commit and **push to the current feature branch**. Do not create a new branch for that phase. Do not push to `main`/`master` unless that is already the checked-out branch and the user named it.
+4. Never commit or push without that approval. Do not `--force` push. Do not skip hooks. Do not amend unless the user’s git rules allow it.
+5. Include the phase PRD/status updates in the same commit when they were part of that phase.
+6. After a successful push, report the branch name, commit, and that the remote is updated.
+
+```text
+❌ BAD: Phase 2 tests are green, immediately git commit && git push
+✅ GOOD: Phase 2 is green. Ask: “Approve commit and push of Phase 2 to the current feature branch?” Then, only if they agree, commit and push.
+```
