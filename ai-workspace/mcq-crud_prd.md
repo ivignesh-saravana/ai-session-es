@@ -9,7 +9,7 @@ Teachers can register, log in, and reach `/mcqs`, but that page is still a stub.
 
 This feature turns `/mcqs` into a question-bank list and adds create, edit, delete, and preview for multiple-choice questions, with a service layer and D1 tables for questions, choices, and attempts.
 
-**As of 2026-09-01**, Phases 1–2 are complete: local D1 has the three MCQ tables, and `src/lib/services/mcq-service.ts` persists questions and choices (including a preview projection without `isCorrect`). There is still no MCQ HTTP API or question-bank UI. Implementation continues one phase at a time.
+**As of 2026-09-01**, Phases 1–3 are complete: local D1 has the three MCQ tables, the MCQ service persists questions and choices, and HTTP APIs exist for list/create/read/update/delete. Preview/attempts APIs and the question-bank UI are not built yet. Implementation continues one phase at a time.
 
 ---
 
@@ -371,33 +371,32 @@ Implement **one phase at a time**. Do not start the next phase until the current
 
 **Phase gate**: Met. Do not start Phase 3 until asked.
 
-### Phase 3: MCQ HTTP routes - PLANNED
+### Phase 3: MCQ HTTP routes - COMPLETED
 
 **Objective**: List, create, read, update, and delete are callable over HTTP. Tests mock the MCQ service, not D1.
 
 **Red**
 
-1. Colocated tests for `GET`/`POST /api/mcqs` and `GET`/`PUT`/`DELETE /api/mcqs/[id]`. Call exported handlers with `Request` objects. Mock `@/lib/services/mcq-service`. Cases:
-   - List 200
-   - Create 201; create 400 (validation)
-   - Get 200; get 404
-   - Put 200; put 400; put 404
-   - Delete 200; delete 404
-   - 500 on unexpected throw
-2. Run `npm test` — **expect red**.
+1. Added `src/app/api/mcqs/route.test.ts` and `src/app/api/mcqs/[id]/route.test.ts`. Handlers called with `Request` objects. Mock `@/lib/services/mcq-service`. Cases:
+   - List 200 and list 500
+   - Create 201; create 400 (invalid JSON / missing choices / `McqValidationError`); create 500
+   - Get 200; get 404; get 500
+   - Put 200; put 400; put 404; put 500
+   - Delete 200 (`{ ok: true }`); delete 404 (no `deleteMcq` call); delete 500
+2. `npm test` — **red**: both suites failed to resolve `./route`. Existing 49 tests still passed.
 
 **Green**
 
-3. Implement the five handlers; validate bodies without Zod unless Zod is authorized later
-4. Consistent `{ "error": "message" }`
-5. Run `npm test` — **expect green**
+3. Implemented `GET`/`POST /api/mcqs` and `GET`/`PUT`/`DELETE /api/mcqs/[id]`. Body parsing without Zod (`parseMcqInput` in `src/lib/mcq-http.ts`).
+4. Errors use `{ "error": "message" }` via `jsonError`
+5. `npm test` — **green: 13 files, 66 tests passed**
 
 **Deliverables**:
 
-- MCQ route handlers
+- MCQ route handlers (preview and attempts remain Phase 5)
 - Green route unit tests
 
-**Phase gate**: `npm test` green. Do not start Phase 4 on red tests.
+**Phase gate**: Met. Do not start Phase 4 until asked.
 
 ### Phase 4: Question bank table and create/edit UI - PLANNED
 
@@ -503,9 +502,19 @@ Module: `src/lib/services/mcq-service.ts`
 
 `createAttempt` is **not** in this module yet (Phase 5).
 
-### Key files (planned — Phases 3–5)
-- `src/app/api/mcqs/route.ts` — GET list, POST create
-- `src/app/api/mcqs/[id]/route.ts` — GET, PUT, DELETE
+### Phase 3 as-built (2026-09-01)
+
+- Body parser (no Zod): `src/lib/mcq-http.ts:3-30`
+- `GET`/`POST /api/mcqs`: `src/app/api/mcqs/route.ts:9-37` — list `{ mcqs }`; create 201; 400 `McqValidationError`; 500 otherwise
+- `GET`/`PUT`/`DELETE /api/mcqs/[id]`: `src/app/api/mcqs/[id]/route.ts:15-66`
+- Dynamic `params` is a Promise (Next.js 16): `src/app/api/mcqs/[id]/route.ts:11-13`
+- Delete 404 via `getMcqById` before `deleteMcq`: `src/app/api/mcqs/[id]/route.ts:57-61`
+- Route tests mock the service, not D1: `src/app/api/mcqs/route.test.ts`, `src/app/api/mcqs/[id]/route.test.ts`
+- Last recorded suite after Phase 3: **13 files, 66 tests, all green**
+
+Preview GET and attempts POST are **not** implemented yet (Phase 5).
+
+### Key files (planned — Phases 4–5)
 - `src/app/api/mcqs/[id]/preview/route.ts` — GET preview (no answer key)
 - `src/app/api/mcqs/[id]/attempts/route.ts` — POST attempt
 - `src/app/mcqs/page.tsx` — question bank
@@ -558,7 +567,7 @@ await db
 - [ ] Delete asks for confirmation, then removes the question (and cascaded choices/attempts)
 - [ ] Preview does not include `isCorrect` on choices in the GET payload
 - [ ] Submitting a preview choice stores an attempt with selected choice, label snapshot, and server-computed `isCorrect`
-- [ ] Routes do not contain SQL; the MCQ service is the only D1 access for these tables
+- [x] Routes do not contain SQL; the MCQ service is the only D1 access for these tables — handlers call `listMcqs` / `createMcq` / `getMcqById` / `updateMcq` / `deleteMcq`
 - [ ] Existing register/login/logout still works; logout remains on the bank page
 - [ ] Each implementation phase was red-then-green; no hollow tests
 - [ ] Tests cover failure paths (validation, 404, choice not on question)
@@ -576,7 +585,7 @@ await db
 | Choice limits | 2 default, max 6, cannot save 1 or 7 | Unit + form tests |
 | Preview honesty | Preview GET has no `isCorrect` on choices | Route/service tests |
 | Attempt accuracy | `isCorrect` matches the stored correct choice | Service tests |
-| Unit suite | All Vitest tests pass | `npm test` — **49 passed** after Phase 2 |
+| Unit suite | All Vitest tests pass | `npm test` — **66 passed** after Phase 3 |
 
 ---
 
@@ -686,7 +695,7 @@ Populate as issues are found during implementation. Known from the auth sprint a
 
 1. Start by reading Overview and Hypothesis
 2. Honor Scope (In/Out/Cut) — no sessions, no `user_id` on attempts, no Zod unless the user says yes
-3. **One phase at a time.** Phases 1–2 are done. Do not start Phase 3 (HTTP routes) unless the user asks. Update phase status markers as work progresses
+3. **One phase at a time.** Phases 1–3 are done. Do not start Phase 4 (UI) unless the user asks. After a completed phase, get approval then commit and push to the current feature branch (`.cursor/rules/implementation.mdc`).
 4. Add as-built details under Technical Implementation Details with `filepath:line-number`
 5. Mark acceptance criteria when they actually work
 6. Ask before new npm dependencies
@@ -700,17 +709,14 @@ Populate as issues are found during implementation. Known from the auth sprint a
 ## Current Status
 
 **Last Updated**: 2026-09-01
-**Current Phase**: Phase 2 complete. Phase 3 (MCQ HTTP routes) not started.
-**Status**: Phase 2 COMPLETED
+**Current Phase**: Phase 3 complete. Phase 4 (question bank UI) not started.
+**Status**: Phase 3 COMPLETED
 
-**Phase 1 (COMPLETED)**
-- Red: 6 MCQ schema tests failed; 35 existing tests passed. Reason: no `CREATE TABLE mcqs` in migrations.
-- Green: `migrations/0002_create_mcq_tables.sql`; local apply on `quiz-maker-db`; **41 tests passed**
-- Remote schema: not applied (user-owned)
+**Phase 1 (COMPLETED)** — schema + local migration
+**Phase 2 (COMPLETED)** — MCQ service; **49 tests** at end of phase
+**Phase 3 (COMPLETED)**
+- Red: missing `./route` for `/api/mcqs` and `/api/mcqs/[id]`
+- Green: route handlers + tests; **66 tests passed**
+- No UI in this phase
 
-**Phase 2 (COMPLETED)**
-- Red: missing `./mcq-service` (Vite failed to resolve the import)
-- Green: `src/lib/services/mcq-service.ts` + `mcq-service.test.ts`; **49 tests passed**
-- No HTTP routes or UI in this phase
-
-**Next Steps**: When asked, start **Phase 3** only (MCQ HTTP route tests, then handlers that call the service). Do not implement UI until Phase 4 is requested.
+**Next Steps**: When asked, start **Phase 4** only (list table + create/edit UI). Ask for approval before committing this phase.
