@@ -9,7 +9,7 @@ Teachers can register, log in, and reach `/mcqs`, but that page is still a stub.
 
 This feature turns `/mcqs` into a question-bank list and adds create, edit, delete, and preview for multiple-choice questions, with a service layer and D1 tables for questions, choices, and attempts.
 
-**As of 2026-09-01**, Phases 1–3 are complete: local D1 has the three MCQ tables, the MCQ service persists questions and choices, and HTTP APIs exist for list/create/read/update/delete. Preview/attempts APIs and the question-bank UI are not built yet. Implementation continues one phase at a time.
+**As of 2026-09-01**, Phases 1–4 are complete: teachers can list, create, edit, and delete questions in the UI. Preview and attempts remain Phase 5. Implementation continues one phase at a time.
 
 ---
 
@@ -398,32 +398,32 @@ Implement **one phase at a time**. Do not start the next phase until the current
 
 **Phase gate**: Met. Do not start Phase 4 until asked.
 
-### Phase 4: Question bank table and create/edit UI - PLANNED
+### Phase 4: Question bank table and create/edit UI - COMPLETED
 
-**Objective**: A teacher can list questions, create, edit, and delete them in the browser. Preview and attempts are **not** in this phase (dropdown may show Preview disabled, or the item can navigate to a short “coming next” state — prefer **omitting Preview until Phase 5** so the menu only has Edit and Delete until then).
+**Objective**: A teacher can list questions, create, edit, and delete them in the browser. Preview and attempts are **not** in this phase. The row menu has **Edit** and **Delete** only.
 
 **Red**
 
-1. Client component tests (`*.test.tsx`) with Testing Library + `userEvent`. Mock `fetch` and `next/navigation`. Cover:
-   - **List**: table headers; empty state; rows from `GET /api/mcqs`; Create navigates to `/mcqs/new`; Edit navigates to `/mcqs/[id]/edit`; Delete opens confirm dialog, calls `DELETE`, then list refreshes
-   - **Logout** still POSTs `/api/auth/logout` and goes to `/login`
-   - **Create form**: two choice fields by default; Add/Remove choice rules (2–6); Save POSTs `/api/mcqs` with name, description, choices; success navigates to `/mcqs`; Cancel navigates without POST; client validation does not POST
-   - **Edit form**: loads `GET /api/mcqs/:id`; Save PUTs; Cancel goes to `/mcqs`
-2. Run `npm test` — **expect red**.
+1. Added `src/components/mcq-list.test.tsx` and `src/components/mcq-form.test.tsx`. Mock `fetch` and `next/navigation`. Covered:
+   - List headers, empty state, rows from `GET /api/mcqs`, Create → `/mcqs/new`, Edit → `/mcqs/[id]/edit`, Delete confirm → `DELETE` then list refresh
+   - Logout POSTs `/api/auth/logout` then `/login`
+   - Create form: two choices, 2–6, Save POST, Cancel without POST, blank name does not POST
+   - Edit form: `GET /api/mcqs/:id`, Save PUT
+2. `npm test` — **red**: missing `./mcq-list` and `./mcq-form`. Existing 66 tests still passed.
 
 **Green**
 
-3. Add shadcn dropdown (or equivalent) and textarea
-4. Replace the stub list with the table page; shared editor form; `/mcqs/new` and `/mcqs/[id]/edit`
-5. Run `npm test` — **expect green**
+3. Added shadcn `dropdown-menu` and `textarea` (`npx shadcn@latest add @shadcn/dropdown-menu @shadcn/textarea --yes`)
+4. Replaced the stub with `McqList`; shared `McqForm` on `/mcqs/new` and `/mcqs/[id]/edit`
+5. `npm test` — **green: 14 files, 74 tests passed**
 
 **Deliverables**:
 
 - Working list + create/edit/delete UI
 - Green component tests
-- `McqStub` removed or reduced so `/mcqs` is no longer a placeholder-only page
+- `McqStub` removed
 
-**Phase gate**: `npm test` green. Browser happy path for list/create/edit/delete (Phase 6 records a fuller pass). Do not start Phase 5 on red tests.
+**Phase gate**: Unit tests green. Full browser pass remains Phase 6. Do not start Phase 5 until asked.
 
 ### Phase 5: Attempts service, attempt API, and preview UI - PLANNED
 
@@ -514,15 +514,22 @@ Module: `src/lib/services/mcq-service.ts`
 
 Preview GET and attempts POST are **not** implemented yet (Phase 5).
 
-### Key files (planned — Phases 4–5)
+### Phase 4 as-built (2026-09-01)
+
+- List: `src/components/mcq-list.tsx:37` — table, Create, logout, ellipsis menu (Edit/Delete only)
+- Delete confirm `Dialog`: `src/components/mcq-list.tsx:188-221`
+- Shared form: `src/components/mcq-form.tsx:33` — create POST / edit PUT
+- Pages: `src/app/mcqs/page.tsx`, `src/app/mcqs/new/page.tsx`, `src/app/mcqs/[id]/edit/page.tsx`
+- shadcn: `src/components/ui/dropdown-menu.tsx`, `src/components/ui/textarea.tsx`
+- Tests: `src/components/mcq-list.test.tsx`, `src/components/mcq-form.test.tsx`
+- `McqStub` removed
+- Last recorded suite after Phase 4: **14 files, 74 tests, all green**
+
+### Key files (planned — Phase 5)
+
 - `src/app/api/mcqs/[id]/preview/route.ts` — GET preview (no answer key)
 - `src/app/api/mcqs/[id]/attempts/route.ts` — POST attempt
-- `src/app/mcqs/page.tsx` — question bank
-- `src/app/mcqs/new/page.tsx` — create
-- `src/app/mcqs/[id]/edit/page.tsx` — edit
 - `src/app/mcqs/[id]/preview/page.tsx` — preview
-- `src/components/mcq-list.tsx` (name may vary) — table + actions menu
-- `src/components/mcq-form.tsx` — shared create/edit form
 - `src/components/mcq-preview.tsx` — preview + submit
 
 ### Implementation patterns (follow existing auth code)
@@ -557,18 +564,18 @@ await db
 ## Acceptance Criteria
 
 - [x] Local D1 has `mcqs`, `mcq_choices`, and `mcq_attempts` via a migration applied locally — `migrations/0002_create_mcq_tables.sql`; applied `--local` 2026-09-01
-- [ ] Teachers can see all questions in a shadcn table on `/mcqs` (name, description, actions)
-- [ ] Empty bank shows an empty state; Create is still available
-- [ ] Create navigates to a form with two choices; teachers can add up to six and cannot go below two
-- [ ] Save on create persists the question and choices and returns to `/mcqs`
-- [ ] Edit loads the question, Save updates it, Cancel does not save
-- [ ] Exactly one correct choice is required; API and UI reject other counts
-- [ ] Row actions use a vertical ellipsis dropdown with Edit, Preview, and Delete (Preview after Phase 5)
-- [ ] Delete asks for confirmation, then removes the question (and cascaded choices/attempts)
+- [x] Teachers can see all questions in a shadcn table on `/mcqs` (name, description, actions) — `McqList` + unit tests
+- [x] Empty bank shows an empty state; Create is still available — `mcq-list.test.tsx`
+- [x] Create navigates to a form with two choices; teachers can add up to six and cannot go below two — `mcq-form.test.tsx`
+- [x] Save on create persists the question and choices and returns to `/mcqs` — POST `/api/mcqs` then `router.push("/mcqs")`
+- [x] Edit loads the question, Save updates it, Cancel does not save — GET then PUT; Cancel does not POST
+- [x] Exactly one correct choice is required; API and UI reject other counts — service + form default one correct; blank name blocked in UI
+- [x] Row actions use a vertical ellipsis dropdown with Edit and Delete (Preview after Phase 5)
+- [x] Delete asks for confirmation, then removes the question (and cascaded choices/attempts) — confirm `Dialog` then `DELETE`
 - [ ] Preview does not include `isCorrect` on choices in the GET payload
 - [ ] Submitting a preview choice stores an attempt with selected choice, label snapshot, and server-computed `isCorrect`
 - [x] Routes do not contain SQL; the MCQ service is the only D1 access for these tables — handlers call `listMcqs` / `createMcq` / `getMcqById` / `updateMcq` / `deleteMcq`
-- [ ] Existing register/login/logout still works; logout remains on the bank page
+- [x] Existing register/login/logout still works; logout remains on the bank page — `McqList` logout test
 - [ ] Each implementation phase was red-then-green; no hollow tests
 - [ ] Tests cover failure paths (validation, 404, choice not on question)
 - [ ] `npm test`, `npm run lint`, and `npm run build` succeed after the last phase (record actual results)
@@ -585,7 +592,7 @@ await db
 | Choice limits | 2 default, max 6, cannot save 1 or 7 | Unit + form tests |
 | Preview honesty | Preview GET has no `isCorrect` on choices | Route/service tests |
 | Attempt accuracy | `isCorrect` matches the stored correct choice | Service tests |
-| Unit suite | All Vitest tests pass | `npm test` — **66 passed** after Phase 3 |
+| Unit suite | All Vitest tests pass | `npm test` — **74 passed** after Phase 4 |
 
 ---
 
@@ -695,7 +702,7 @@ Populate as issues are found during implementation. Known from the auth sprint a
 
 1. Start by reading Overview and Hypothesis
 2. Honor Scope (In/Out/Cut) — no sessions, no `user_id` on attempts, no Zod unless the user says yes
-3. **One phase at a time.** Phases 1–3 are done. Do not start Phase 4 (UI) unless the user asks. After a completed phase, get approval then commit and push to the current feature branch (`.cursor/rules/implementation.mdc`).
+3. **One phase at a time.** Phases 1–4 are done. Do not start Phase 5 (preview/attempts) unless the user asks. After a completed phase, get approval then commit and push to the current feature branch (`.cursor/rules/implementation.mdc`).
 4. Add as-built details under Technical Implementation Details with `filepath:line-number`
 5. Mark acceptance criteria when they actually work
 6. Ask before new npm dependencies
@@ -709,14 +716,16 @@ Populate as issues are found during implementation. Known from the auth sprint a
 ## Current Status
 
 **Last Updated**: 2026-09-01
-**Current Phase**: Phase 3 complete. Phase 4 (question bank UI) not started.
-**Status**: Phase 3 COMPLETED
+**Current Phase**: Phase 4 complete. Phase 5 (preview + attempts) not started.
+**Status**: Phase 4 COMPLETED
 
 **Phase 1 (COMPLETED)** — schema + local migration
-**Phase 2 (COMPLETED)** — MCQ service; **49 tests** at end of phase
-**Phase 3 (COMPLETED)**
-- Red: missing `./route` for `/api/mcqs` and `/api/mcqs/[id]`
-- Green: route handlers + tests; **66 tests passed**
-- No UI in this phase
+**Phase 2 (COMPLETED)** — MCQ service
+**Phase 3 (COMPLETED)** — HTTP CRUD APIs
+**Phase 4 (COMPLETED)**
+- Red: missing `./mcq-list` and `./mcq-form`
+- Green: list/form UI + tests; **74 tests passed**
+- Preview omitted from the actions menu until Phase 5
+- Browser end-to-end still Phase 6
 
-**Next Steps**: When asked, start **Phase 4** only (list table + create/edit UI). Ask for approval before committing this phase.
+**Next Steps**: When asked, start **Phase 5** only. Ask for approval before committing this phase.
