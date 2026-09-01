@@ -254,7 +254,7 @@ Do not implement a phase’s production code before its tests exist, except the 
 
 **Phase gate**: `npm test` green; local migration applied. Do not start Phase 2 on red tests.
 
-### Phase 2: User service - PLANNED
+### Phase 2: User service - COMPLETED
 
 **Objective**: All user persistence goes through one server-only module, proven by unit tests against a mocked D1.
 
@@ -286,7 +286,7 @@ Do not implement a phase’s production code before its tests exist, except the 
 
 **Phase gate**: `npm test` green. Do not start Phase 3 on red tests.
 
-### Phase 3: Auth API routes - PLANNED
+### Phase 3: Auth API routes - COMPLETED
 
 **Objective**: Register, login, and logout are callable over HTTP, proven by unit tests that mock the user service (not D1).
 
@@ -383,7 +383,8 @@ Do not implement a phase’s production code before its tests exist, except the 
 - `wrangler.jsonc` — D1 binding `DB`
 - `migrations/0001_create_users.sql` — users table and unique indexes on username and email
 - `src/lib/services/user-service.ts` — D1-backed CRUD and credential lookup
-- `src/lib/hash-password.ts` — SHA-256 hex for the browser
+- `src/lib/services/user-service.test.ts` — mocked D1 CRUD, collisions, and credentials
+- `src/lib/http.ts` — JSON error shape, body parsing, hash comparison helpers
 - `src/app/api/auth/register/route.ts` — register
 - `src/app/api/auth/login/route.ts` — login
 - `src/app/api/auth/logout/route.ts` — logout stub
@@ -393,7 +394,6 @@ Do not implement a phase’s production code before its tests exist, except the 
 - `src/app/page.tsx` — entry to auth
 - `vitest.config.ts` — Vitest + jsdom + `@/` path alias
 - `src/lib/users-schema.test.ts` — migration/schema contract (Phase 1)
-- `src/lib/services/user-service.test.ts` — mocked D1 CRUD and collisions (Phase 2)
 - `src/app/api/auth/*/route.test.ts` — register/login/logout handlers (Phase 3)
 - `src/lib/hash-password.test.ts` — SHA-256 hex helper (Phase 4)
 - colocated `*.test.tsx` for register, login, and MCQ stub client UI (Phase 4)
@@ -428,6 +428,13 @@ await db
 // at minimum do not early-return different messages for "missing user" vs "bad password".
 ```
 
+```typescript
+// Unique collisions from D1 become a typed error for 409 at the route layer.
+if (isUniqueConstraintError(error)) {
+  throw new UserAlreadyExistsError();
+}
+```
+
 ### Important Notes
 
 - D1 is server-only. User service must not be imported from `'use client'` modules.
@@ -456,7 +463,7 @@ await db
 - [ ] Successful register navigates to `/mcqs`
 - [ ] Logout POST succeeds and the UI returns to `/login`
 - [ ] `/mcqs` is a stub only (no MCQ CRUD)
-- [ ] User service supports create, update, and delete even if update/delete are unused by the UI
+- [x] User service supports create, update, and delete even if update/delete are unused by the UI
 - [ ] No social login, tokens, cookies, or session store are introduced
 - [ ] Each implementation phase was developed red-then-green; the full unit suite is green at the end of Phase 5
 - [ ] Tests cover failure paths (validation, 401, 409, missing user), not only happy paths, and never assert tautologies
@@ -610,23 +617,34 @@ When working with this PRD:
 7. Keep all sections current — remove outdated information
 8. Use code references format: `filepath:line-number` when citing code
 9. Ask before adding any npm dependency
-10. Never apply D1 migrations remotely and never deploy unless the user asks
+10. **This session:** do not create new migrations and do not deploy (including `npm run deploy` and remote D1 apply). The user applies production migrations themselves. Later sessions may restore the usual “local migrations only” rule.
 11. Prefer `npm run preview` for anything that uses D1
 12. Hash passwords in the browser before POST; persist and compare `password_hash` only
 13. Follow TDD per phase: write the listed tests, run `npm test` (red), implement, run `npm test` (green). Do not start the next phase on red tests
 14. Follow `.cursor/skills/testing/SKILL.md` for harness, mocking, and what makes a test worth writing
 15. Vitest packages in this PRD are approved; still ask before `zod` or `@cloudflare/vitest-pool-workers`
+16. Stay on `feature/register-login-logout` for remaining phases. Commit and push **only when the user has reviewed a phase and asks**. Do not start the next phase until they say so.
 
 ---
 
 ## Current Status
 
 **Last Updated**: 2026-09-01
-**Current Phase**: Phase 1 - Vitest harness, D1, and users migration
-**Status**: COMPLETED — waiting for review before Phase 2
+**Current Phase**: Phase 3 - Auth API routes
+**Status**: COMPLETED — waiting for review before Phase 4
 **Phase 1 results**:
 - `npm test` red first: 4 failed (`migrations directory is missing`)
 - Local migration applied: `0001_create_users.sql` on D1 `ai-session-es` (`--local` only)
 - `npm test` green after: 4 passed
-- Remote `wrangler d1 create` was not run (no `CLOUDFLARE_API_TOKEN`). `database_id` in `wrangler.jsonc` is a local placeholder
-**Next Steps**: After review, Phase 2 user-service tests (red) then service implementation. Confirm before installing `zod`.
+- Remote `wrangler d1 create` was not run (no `CLOUDFLARE_API_TOKEN`). `database_id` in `wrangler.jsonc` is a local placeholder. User will apply the production migration.
+**Phase 2 results**:
+- `npm test` red first: `Failed to resolve import "./user-service"`
+- Implemented `src/lib/services/user-service.ts` (create/read/update/delete + `getCredentialsByUsername`, `UserAlreadyExistsError`)
+- `npm test` green after: 13 passed (4 schema + 9 user service)
+- No new migration. No deploy.
+**Phase 3 results**:
+- `npm test` red first: `Failed to resolve import "./route"` for register, login, and logout
+- Implemented `POST /api/auth/register`, `/login`, `/logout`; validation is manual in `src/lib/http.ts` (**zod not installed**)
+- `npm test` green after: 24 passed
+- No new migration. No deploy.
+**Next Steps**: After review and an explicit commit/push, Phase 4 UI. Confirm if you want `zod` added later.
